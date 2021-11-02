@@ -206,6 +206,8 @@ class Bot:
     won_cards: List[Card] = field(default_factory=list)
     # TODO We use this data to emember which bot it which. Likely there is a better way.
     data: Any = None
+    # TODO it is probably a good idea to keep the seen cards here
+    seen_cards: List[Card] = field(default_factory=list)
 
     def get_move(self, state: 'PlayerGameState') -> Move:
         move = self.implementation(state)
@@ -233,7 +235,7 @@ class GameState:
     previous: Optional['GameState']
     # TODO it might be that we have to include the ongoing trick here, such that a bot can implement things like rdeep easily
     # ongoing_trick: PartialTrick
-    # TODO it is probably a good idea to keep the seen cards here
+
 
     def __post_init__(self) -> None:
         self.trump_suit = self.talon.trump_suit()
@@ -336,6 +338,15 @@ class LeaderGameState(PlayerGameState):
 
     def get_opponent_score(self) -> Score:
         raise NotImplementedError()
+
+    def make_assumption(self) -> 'GameState':
+        original_gamestate = self.__game_state
+        seen_cards = self.__game_state.leader.seen_cards
+        # make a new game state
+        # fill all seen in cards in the same in the same position as in original
+        # randomly palce the other cards somewhere
+        raise NotImplementedError()
+
 
 
 class FollowerGameState(PlayerGameState):
@@ -735,7 +746,7 @@ class GamePlayEngine:
     # TODO the idea of the following method is to be able to implementsomething like rdeep
     # we still need to figure out how to let it play from an intermediate state with only one move played
 
-    def play_game_from_state(self, bot1: Bot, bot2: Bot, game_state: GameState) -> None:
+    def play_game_from_state(self, bot1: Bot, bot2: Bot, game_state: GameState) -> GameState:
         raise NotImplementedError()
 
 
