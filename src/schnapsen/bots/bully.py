@@ -18,4 +18,4 @@ class RandBot(Bot):
         return move
 
     def __repr__(self) -> str:
-        return f"RandBot(seed={self.seed})"
+        return f"BullyBot(seed={self.seed})"

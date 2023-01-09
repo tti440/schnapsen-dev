@@ -3,11 +3,10 @@ from typing import Optional
 
 import click
 
-from schnapsen.game import (Bot, Move, PlayerPerspective,
+from src.schnapsen.game import (Bot, Move, PlayerPerspective,
                             SchnapsenGamePlayEngine, Trump_Exchange)
-from schnapsen.twenty_four_card_schnapsen import \
+from src.schnapsen.twenty_four_card_schnapsen import \
     TwentyFourSchnapsenGamePlayEngine
-
 
 @click.group()
 def main() -> None:

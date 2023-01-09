@@ -1,6 +1,6 @@
-from schnapsen.bots.gui import SchnapsenServer
-from schnapsen.bots.rand import RandBot
-from schnapsen.game import SchnapsenGamePlayEngine
+from src.schnapsen.bots.gui import SchnapsenServer
+from src.schnapsen.bots.rand import RandBot
+from src.schnapsen.game import SchnapsenGamePlayEngine
 import random
 
 if __name__ == "__main__":
