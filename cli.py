@@ -2,7 +2,8 @@ import random
 from typing import Optional
 
 import click
-
+from src.schnapsen.bots.bully import BullyBot
+from src.schnapsen.bots.bot2 import Bot2
 from src.schnapsen.game import (Bot, Move, PlayerPerspective,
                             SchnapsenGamePlayEngine, Trump_Exchange)
 from src.schnapsen.twenty_four_card_schnapsen import \
@@ -85,5 +86,14 @@ def game_24() -> None:
         print(f"Game ended. Winner is {winner_id} with {game_points} points, score {score}")
 
 
+# Add Bully-Bot2 normal schnapsen game
+@main.command()
+def Bully_Bot2_game():
+    engine = SchnapsenGamePlayEngine()
+    bot1 = BullyBot(12112121)
+    bot2 = Bot2(464566)
+    engine.play_game(bot1,bot2,random.Random(1))
+    
 if __name__ == "__main__":
     main()
+
