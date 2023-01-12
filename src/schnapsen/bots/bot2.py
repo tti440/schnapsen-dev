@@ -29,13 +29,21 @@ class Bot2(Bot):
                 previous_suit = move.card.suit
             moves_same_suit = []
             for move in list(moves):
-                if move.card.suit == previous_suit:
+                if move.is_trump_exchange():
+                    suit = move.cards[0].suit
+                else:
+                    suit = move.as_regular_move().card.suit
+                if suit == previous_suit:
                     moves_same_suit.append(move)
             lowest_score = float('inf')
             best_move = None
             if len(moves_same_suit)!=0:
                 for move in moves_same_suit:
-                    score = scorer.rank_to_points(move.card.rank)
+                    if move.is_trump_exchange():
+                        rank = move.cards[0].rank
+                    else:
+                        rank = move.as_regular_move().card.rank
+                    score = scorer.rank_to_points(rank)
                     if score < lowest_score:
                         lowest_score = score
                         best_move = move
