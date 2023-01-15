@@ -95,7 +95,9 @@ def Bully_Bot2_game():
     for i in range(1000):
         winner_id, game_points, score = engine.play_game(bot1, bot2, random.Random(i))
         print(f"Game ended. Winner is {winner_id} with {game_points} points, score {score}")
-    
+
+
+#call main function
 if __name__ == "__main__":
     main()
 
