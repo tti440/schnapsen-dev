@@ -1,5 +1,5 @@
 from typing import Optional
-from schnapsen.game import Bot, PlayerPerspective, Move, GameState, GamePlayEngine
+from src.schnapsen.game import Bot, PlayerPerspective, Move, GameState, GamePlayEngine
 from random import Random
 
 

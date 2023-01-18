@@ -1,5 +1,5 @@
-from schnapsen.game import Bot, PlayerPerspective, Move, SchnapsenTrickScorer, Score
-from schnapsen.deck import Suit, Card, Rank
+from src.schnapsen.game import Bot, PlayerPerspective, Move, SchnapsenTrickScorer, Score
+from src.schnapsen.deck import Suit, Card, Rank
 from typing import Optional
 
 

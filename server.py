@@ -1,7 +1,7 @@
 import random
-from schnapsen.bots import SchnapsenServer
-from schnapsen.bots import RandBot, AlphaBetaBot, RdeepBot
-from schnapsen.game import SchnapsenGamePlayEngine, Bot
+from src.schnapsen.bots import SchnapsenServer
+from src.schnapsen.bots import RandBot, AlphaBetaBot, RdeepBot
+from src.schnapsen.game import SchnapsenGamePlayEngine, Bot
 import click
 
 

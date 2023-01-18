@@ -1,6 +1,6 @@
-from schnapsen.game import Bot, PlayerPerspective, SchnapsenDeckGenerator, Move, Trick, GamePhase
+from src.schnapsen.game import Bot, PlayerPerspective, SchnapsenDeckGenerator, Move, Trick, GamePhase
 from typing import List, Optional, cast, Literal
-from schnapsen.deck import Suit, Rank
+from src.schnapsen.deck import Suit, Rank
 from sklearn.neural_network import MLPClassifier
 from sklearn.linear_model import LogisticRegression
 import joblib

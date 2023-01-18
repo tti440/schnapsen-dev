@@ -4,16 +4,16 @@ import pathlib
 from typing import Optional
 
 import click
-from schnapsen.bots import MLDataBot, train_ML_model, MLPlayingBot, RandBot
+from src.schnapsen.bots import MLDataBot, train_ML_model, MLPlayingBot, RandBot
 
-from schnapsen.bots.example_bot import ExampleBot
+from src.schnapsen.bots.example_bot import ExampleBot
 
-from schnapsen.game import (Bot, Move, PlayerPerspective,
+from src.schnapsen.game import (Bot, Move, PlayerPerspective,
                             SchnapsenGamePlayEngine, Trump_Exchange)
-from schnapsen.twenty_four_card_schnapsen import \
+from src.schnapsen.twenty_four_card_schnapsen import \
     TwentyFourSchnapsenGamePlayEngine
 
-from schnapsen.bots.rdeep import RdeepBot
+from src.schnapsen.bots.rdeep import RdeepBot
 
 
 @click.group()
