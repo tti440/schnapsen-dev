@@ -1,5 +1,5 @@
-from src.schnapsen.game import DeckGenerator, SchnapsenDeckGenerator, GamePlayEngine, SchnapsenHandGenerator, SchnapsenMoveValidator, SchnapsenTrickImplementer, SchnapsenTrickScorer, SimpleMoveRequester
-from src.schnapsen.deck import Card, OrderedCardCollection, Rank, Suit
+from schnapsen.game import DeckGenerator, SchnapsenDeckGenerator, GamePlayEngine, SchnapsenHandGenerator, SchnapsenMoveValidator, SchnapsenTrickImplementer, SchnapsenTrickScorer, SimpleMoveRequester
+from schnapsen.deck import Card, OrderedCardCollection, Rank, Suit
 
 
 class MyDeckGenerator(DeckGenerator):

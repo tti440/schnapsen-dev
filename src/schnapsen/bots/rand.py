@@ -1,6 +1,6 @@
 import random
 from typing import Optional
-from src.schnapsen.game import Bot, PlayerPerspective, Move
+from schnapsen.game import Bot, PlayerPerspective, Move
 
 
 class RandBot(Bot):

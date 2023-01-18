@@ -622,8 +622,6 @@ class PlayerPerspective(ABC):
         self.__game_state = state
         self.__engine = engine
 
-    def get_engine(self):
-        return self.__engine
     @abstractmethod
     def valid_moves(self) -> list[Move]:
         """

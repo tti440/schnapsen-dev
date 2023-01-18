@@ -6,8 +6,8 @@ from typing import Optional, Tuple, Type, cast
 
 from flask import Flask, abort, render_template, request
 
-from src.schnapsen.deck import Card, Rank, Suit
-from src.schnapsen.game import (Bot, GamePhase, Marriage, Move, PlayerPerspective,
+from schnapsen.deck import Card, Rank, Suit
+from schnapsen.game import (Bot, GamePhase, Marriage, Move, PlayerPerspective,
                             RegularMove, RegularTrick, Trump_Exchange)
 
 
