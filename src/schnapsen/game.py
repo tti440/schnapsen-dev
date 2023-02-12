@@ -5,11 +5,13 @@ In this module you will find all parts related to playing a game of Schnapsen.
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
+import pathlib
 from random import Random
-from typing import Iterable, Optional, Tuple, Union, cast, Any
+from typing import Iterable, Optional, Tuple, Union, List, cast, Any
 from .deck import CardCollection, OrderedCardCollection, Card, Rank, Suit
 import itertools
-
+import joblib
+import numpy as np
 
 class Bot(ABC):
     """
@@ -817,7 +819,7 @@ class PlayerPerspective(ABC):
 
         full_state = self.__game_state.copy_with_other_bots(_DummyBot(), _DummyBot())
         if self.get_phase() == GamePhase.TWO:
-            return full_state
+            return full_state, None
 
         seen_cards = self.seen_cards(leader_move)
         full_deck = self.__engine.deck_generator.get_initial_deck()
@@ -855,9 +857,473 @@ class PlayerPerspective(ABC):
             full_state.leader.hand = Hand(new_opponent_hand)
 
         assert len(unseen_cards) == 0, "All cards must be consumed by either the opponent hand or talon by now"
+        count = 0
+        for card in opponent_hand:
+            if card in new_opponent_hand:
+                count += 1
+        return full_state, count/5
 
-        return full_state
+    def make_assumption_ML(self, leader_move: Optional[Move], rand: Random, my_move: Move) -> GameState:
+        """
+        Takes the current imperfect information state and makes a random guess as to the position of the unknown cards.
+        This also takes into account cards seen earlier during marriages played by the opponent, as well as potential trump jack exchanges
 
+        This removes the real bots from the GameState. If you want to continue the game, provide new Bots. See copy_with_other_bots in the GameState class.
+
+        :param leader_move: the optional already executed leader_move in the current trick. This card is guaranteed to be in the hand of the leader in the returned GameState.
+        :param rand: the source of random numbers to do the random assignment of unknown cards
+
+        :returns: A perfect information state object.
+        """
+        opponent_hand = self.__get_opponent_bot_state().hand.copy()
+
+        
+        if leader_move is not None:
+            self.__game_state.leader.hand.get_cards()
+            # get the leader's move representation, even if it is None
+            leader_move_representation = self.get_move_feature_vector(leader_move)
+            assert all(card in opponent_hand for card in leader_move.cards), f"The specified leader_move {leader_move} is not in the hand of the opponent {opponent_hand}"
+
+        full_state = self.__game_state.copy_with_other_bots(_DummyBot(), _DummyBot())
+        if self.get_phase() == GamePhase.TWO:
+            return full_state, None
+        
+        model = joblib.load("ML_models/predict_hands")
+        seen_cards = self.seen_cards(leader_move)
+        full_deck = self.__engine.deck_generator.get_initial_deck()
+        # get the sate feature representation
+        state_representation = self.get_state_feature_vector()
+        # get the feature representations for all my valid moves
+        my_move_representation: list[int] = self.get_move_feature_vector(my_move)
+
+        # create all model inputs, for all bot's valid moves
+        action_state_representations: list[list[int]] = []
+        cards_representation = self.available_card_feature_vector()
+        if leader_move is None:
+            follower_move_representation = self.get_move_feature_vector(None)
+            action_state_representations.append(
+                    state_representation + my_move_representation + follower_move_representation + cards_representation)
+        else:
+            
+            action_state_representations.append(
+                    state_representation + leader_move_representation + my_move_representation + cards_representation)
+        
+        prediction = model.predict_proba(action_state_representations)[0]
+        player_hands = self.get_hand()
+        for card in player_hands:
+            card_suit = card.suit
+            card_rank = card.rank
+            if card_suit == Suit.HEARTS:
+                suit_index = 0
+            elif card_suit == Suit.CLUBS:
+                suit_index = 1
+            elif card_suit == Suit.SPADES:
+                suit_index = 2
+            elif card_suit == Suit.DIAMONDS:
+                suit_index = 3
+            else:
+                raise ValueError("Suit of card was not found!")
+            if card_rank == Rank.ACE:
+                rank_index = 0
+            elif card_rank == Rank.TEN:
+                rank_index = 4
+            elif card_rank == Rank.JACK:
+                rank_index = 8
+            elif card_rank == Rank.QUEEN:
+                rank_index = 12
+            elif card_rank == Rank.KING:
+                rank_index = 16
+            else:
+                raise AssertionError("Provided card Rank does not exist!")
+            index = rank_index + suit_index
+            prediction[index] = 0
+        seen_opponent_hand = list(filter(lambda card: card in seen_cards, opponent_hand))
+        unseen_opponent_hand = list(filter(lambda card: card not in seen_cards, opponent_hand))
+        for card in seen_opponent_hand:
+            card_suit = card.suit
+            card_rank = card.rank
+            if card_suit == Suit.HEARTS:
+                suit_index = 0
+            elif card_suit == Suit.CLUBS:
+                suit_index = 1
+            elif card_suit == Suit.SPADES:
+                suit_index = 2
+            elif card_suit == Suit.DIAMONDS:
+                suit_index = 3
+            else:
+                raise ValueError("Suit of card was not found!")
+            if card_rank == Rank.ACE:
+                rank_index = 0
+            elif card_rank == Rank.TEN:
+                rank_index = 4
+            elif card_rank == Rank.JACK:
+                rank_index = 8
+            elif card_rank == Rank.QUEEN:
+                rank_index = 12
+            elif card_rank == Rank.KING:
+                rank_index = 16
+            else:
+                raise AssertionError("Provided card Rank does not exist!")
+            index = rank_index + suit_index
+            prediction[index] = 0
+            
+        talon = full_state.talon
+        seen_talon = list(filter(lambda card: card in seen_cards, talon))
+        unseen_talon = list(filter(lambda card: card not in seen_cards, talon))
+        for card in seen_talon:
+            card_suit = card.suit
+            card_rank = card.rank
+            if card_suit == Suit.HEARTS:
+                suit_index = 0
+            elif card_suit == Suit.CLUBS:
+                suit_index = 1
+            elif card_suit == Suit.SPADES:
+                suit_index = 2
+            elif card_suit == Suit.DIAMONDS:
+                suit_index = 3
+            else:
+                raise ValueError("Suit of card was not found!")
+            if card_rank == Rank.ACE:
+                rank_index = 0
+            elif card_rank == Rank.TEN:
+                rank_index = 4
+            elif card_rank == Rank.JACK:
+                rank_index = 8
+            elif card_rank == Rank.QUEEN:
+                rank_index = 12
+            elif card_rank == Rank.KING:
+                rank_index = 16
+            else:
+                raise AssertionError("Provided card Rank does not exist!")
+            index = rank_index + suit_index
+            prediction[index] = 0
+            
+        unseen_cards = list(filter(lambda card: card not in seen_cards, full_deck))
+        assert len(unseen_talon) + len(unseen_opponent_hand) == len(unseen_cards), "Logical error. The number of unseen cards in the opponents hand and in the talon must be equal to the number of unseen cards"
+        new_opponent_hand = []
+        if len(seen_opponent_hand) != 0:
+            for card in seen_opponent_hand:
+                new_opponent_hand.append(card)
+        while len(new_opponent_hand) < 5:
+            pred_index = np.argmax(np.array(prediction))
+            pred_suit = pred_index % 4 
+            pred_rank = pred_index // 4
+            if pred_suit == 0:
+                suit = Suit.HEARTS
+            elif pred_suit == 1:
+                suit = Suit.CLUBS
+            elif pred_suit == 2:
+                suit = Suit.SPADES
+            elif pred_suit == 3:
+                suit = Suit.DIAMONDS
+            if pred_rank == 0:
+                rank = Rank.ACE
+            elif pred_rank == 1:
+                rank = Rank.TEN
+            elif pred_rank == 2:
+                rank = Rank.JACK
+            elif pred_rank == 3:
+                rank = Rank.QUEEN
+            elif pred_rank == 4:
+                rank = Rank.KING
+            if Card.get_card(rank, suit) in unseen_cards:
+                new_opponent_hand.append(Card.get_card(rank, suit))
+                unseen_cards.pop(unseen_cards.index(Card.get_card(rank, suit)))
+            prediction[pred_index] = 0
+        rand.shuffle(unseen_cards)
+        new_talon = []
+        for i in range(len(unseen_cards)):
+            new_talon.append(unseen_cards.pop())
+        for card in talon:
+            if card in seen_talon:
+                new_talon.append(card)
+
+        full_state.talon = Talon(new_talon)
+
+        if self.am_i_leader():
+            full_state.follower.hand = Hand(new_opponent_hand)
+        else:
+            full_state.leader.hand = Hand(new_opponent_hand)
+
+        
+        assert len(unseen_cards) == 0, "All cards must be consumed by either the opponent hand or talon by now"
+        count = 0
+        for card in opponent_hand:
+            if card in new_opponent_hand:
+                count += 1
+        return full_state, count/5
+    
+    def get_one_hot_encoding_of_card_suit(self, card_suit: Suit) -> List[int]:
+        """
+        Translating the suit of a card into one hot vector encoding of size 4.
+        """
+        card_suit_one_hot: list[int]
+        if card_suit == Suit.HEARTS:
+            card_suit_one_hot = [0, 0, 0, 1]
+        elif card_suit == Suit.CLUBS:
+            card_suit_one_hot = [0, 0, 1, 0]
+        elif card_suit == Suit.SPADES:
+            card_suit_one_hot = [0, 1, 0, 0]
+        elif card_suit == Suit.DIAMONDS:
+            card_suit_one_hot = [1, 0, 0, 0]
+        else:
+            raise ValueError("Suit of card was not found!")
+
+        return card_suit_one_hot
+
+    def get_one_hot_encoding_of_card_rank(self, card_rank: Rank) -> List[int]:
+        """
+        Translating the rank of a card into one hot vector encoding of size 13.
+        """
+        card_rank_one_hot: list[int]
+        if card_rank == Rank.ACE:
+            card_rank_one_hot = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]
+        elif card_rank == Rank.TWO:
+            card_rank_one_hot = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0]
+        elif card_rank == Rank.THREE:
+            card_rank_one_hot = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0]
+        elif card_rank == Rank.FOUR:
+            card_rank_one_hot = [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0]
+        elif card_rank == Rank.FIVE:
+            card_rank_one_hot = [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0]
+        elif card_rank == Rank.SIX:
+            card_rank_one_hot = [0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0]
+        elif card_rank == Rank.SEVEN:
+            card_rank_one_hot = [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0]
+        elif card_rank == Rank.EIGHT:
+            card_rank_one_hot = [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0]
+        elif card_rank == Rank.NINE:
+            card_rank_one_hot = [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0]
+        elif card_rank == Rank.TEN:
+            card_rank_one_hot = [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        elif card_rank == Rank.JACK:
+            card_rank_one_hot = [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        elif card_rank == Rank.QUEEN:
+            card_rank_one_hot = [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        elif card_rank == Rank.KING:
+            card_rank_one_hot = [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        else:
+            raise AssertionError("Provided card Rank does not exist!")
+        return card_rank_one_hot
+
+
+    def get_move_feature_vector(self, move: Optional[Move]) -> List[int]:
+        """
+            In case there isn't any move provided move to encode, we still need to create a "padding"-"meaningless" vector of the same size,
+            filled with 0s, since the ML models need to receive input of the same dimensionality always.
+            Otherwise, we create all the information of the move i) move type, ii) played card rank and iii) played card suit
+            translate this information into one-hot vectors respectively, and concatenate these vectors into one move feature representation vector
+        """
+
+        if move is None:
+            move_type_one_hot_encoding_numpy_array = [0, 0, 0]
+            card_rank_one_hot_encoding_numpy_array = [0, 0, 0, 0]
+            card_suit_one_hot_encoding_numpy_array = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+        else:
+            move_type_one_hot_encoding: list[int]
+            # in case the move is a marriage move
+            if move.is_marriage():
+                move_type_one_hot_encoding = [0, 0, 1]
+                card = move.queen_card
+            #  in case the move is a trump exchange move
+            elif move.is_trump_exchange():
+                move_type_one_hot_encoding = [0, 1, 0]
+                card = move.jack
+            #  in case it is a regular move
+            else:
+                move_type_one_hot_encoding = [1, 0, 0]
+                card = move.card
+            move_type_one_hot_encoding_numpy_array = move_type_one_hot_encoding
+            card_rank_one_hot_encoding_numpy_array = self.get_one_hot_encoding_of_card_rank(card.rank)
+            card_suit_one_hot_encoding_numpy_array = self.get_one_hot_encoding_of_card_suit(card.suit)
+
+        return move_type_one_hot_encoding_numpy_array + card_rank_one_hot_encoding_numpy_array + card_suit_one_hot_encoding_numpy_array
+
+
+    def get_state_feature_vector(self) -> List[int]:
+        """
+            This function gathers all subjective information that this bot has access to, that can be used to decide its next move, including:
+            - points of this player (int)
+            - points of the opponent (int)
+            - pending points of this player (int)
+            - pending points of opponent (int)
+            - the trump suit (1-hot encoding)
+            - phase of game (1-hoy encoding)
+            - talon size (int)
+            - if this player is leader (1-hot encoding)
+            - What is the status of each card of the deck (where it is, or if its location is unknown)
+
+            Important: This function should not include the move of this agent.
+            It should only include any earlier actions of other agents (so the action of the other agent in case that is the leader)
+        """
+        # a list of all the features that consist the state feature set, of type np.ndarray
+        state_feature_list: list[int] = []
+
+        player_score = self.get_my_score()
+        # - points of this player (int)
+        player_points = player_score.direct_points
+        # - pending points of this player (int)
+        player_pending_points = player_score.pending_points
+
+        # add the features to the feature set
+        state_feature_list += [player_points]
+        state_feature_list += [player_pending_points]
+
+        opponents_score = self.get_opponent_score()
+        # - points of the opponent (int)
+        opponents_points = opponents_score.direct_points
+        # - pending points of opponent (int)
+        opponents_pending_points = opponents_score.pending_points
+
+        # add the features to the feature set
+        state_feature_list += [opponents_points]
+        state_feature_list += [opponents_pending_points]
+
+        # - the trump suit (1-hot encoding)
+        trump_suit = self.get_trump_suit()
+        trump_suit_one_hot = self.get_one_hot_encoding_of_card_suit(trump_suit)
+        # add this features to the feature set
+        state_feature_list += trump_suit_one_hot
+
+        # - phase of game (1-hot encoding)
+        game_phase_encoded = [1, 0] if self.get_phase() == GamePhase.TWO else [0, 1]
+        # add this features to the feature set
+        state_feature_list += game_phase_encoded
+
+        # - talon size (int)
+        talon_size = self.get_talon_size()
+        # add this features to the feature set
+        state_feature_list += [talon_size]
+
+        # - if this player is leader (1-hot encoding)
+        i_am_leader = [0, 1] if self.am_i_leader() else [1, 0]
+        # add this features to the feature set
+        state_feature_list += i_am_leader
+
+        # gather all known deck information
+        hand_cards = self.get_hand().cards
+        trump_card = self.get_trump_card()
+        won_cards = self.get_won_cards().get_cards()
+        opponent_won_cards = self.get_opponent_won_cards().get_cards()
+        opponent_known_cards = self.get_known_cards_of_opponent_hand().get_cards()
+        # each card can either be i) on player's hand, ii) on player's won cards, iii) on opponent's hand, iv) on opponent's won cards
+        # v) be the trump card or vi) in an unknown position -> either on the talon or on the opponent's hand
+        # There are all different cases regarding card's knowledge, and we represent these 6 cases using one hot encoding vectors as seen bellow.
+
+        deck_knowledge_in_consecutive_one_hot_encodings: list[int] = []
+
+        for card in SchnapsenDeckGenerator().get_initial_deck():
+            card_knowledge_in_one_hot_encoding: list[int]
+            # i) on player's hand
+            if card in hand_cards:
+                card_knowledge_in_one_hot_encoding = [0, 0, 0, 0, 0, 1]
+            # ii) on player's won cards
+            elif card in won_cards:
+                card_knowledge_in_one_hot_encoding = [0, 0, 0, 0, 1, 0]
+            # iii) on opponent's hand
+            elif card in opponent_known_cards:
+                card_knowledge_in_one_hot_encoding = [0, 0, 0, 1, 0, 0]
+            # iv) on opponent's won cards
+            elif card in opponent_won_cards:
+                card_knowledge_in_one_hot_encoding = [0, 0, 1, 0, 0, 0]
+            # v) be the trump card
+            elif card == trump_card:
+                card_knowledge_in_one_hot_encoding = [0, 1, 0, 0, 0, 0]
+            # vi) in an unknown position as it is invisible to this player. Thus, it is either on the talon or on the opponent's hand
+            else:
+                card_knowledge_in_one_hot_encoding = [1, 0, 0, 0, 0, 0]
+            # This list eventually develops to one long 1-dimensional numpy array of shape (120,)
+            deck_knowledge_in_consecutive_one_hot_encodings += card_knowledge_in_one_hot_encoding
+        # deck_knowledge_flattened: np.ndarray = np.concatenate(tuple(deck_knowledge_in_one_hot_encoding), axis=0)
+
+        # add this features to the feature set
+        state_feature_list += deck_knowledge_in_consecutive_one_hot_encodings
+
+        return state_feature_list
+
+    def available_card_feature_vector(self) -> List[float]:
+        """
+            This function returns available cards in the phase 1 with probabilities.
+            Important: This function should not include the move of this agent.
+            It should only include any earlier actions of other agents (so the action of the other agent in case that is the leader)
+        """
+        # Suit order: HEARTS, CLUBS, SPADES, DIAMONDS
+
+        # 0, 1, 2, 3 - ACE
+        # 4, 5, 6, 7 - TEN
+        # 8, 9, 10, 11 - JACK
+        # 12, 13, 14, 15 - QUEEN
+        # 16, 17, 18, 19 - KING
+        all_cards=[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+        player_hands = self.get_hand()
+        player_won_cards = self.get_won_cards()
+        opponent_won_cards = self.get_opponent_won_cards()
+        for used_cards in [player_hands, player_won_cards, opponent_won_cards]:
+            for card in used_cards:
+                card_suit = card.suit
+                card_rank = card.rank
+                if card_suit == Suit.HEARTS:
+                    suit_index = 0
+                elif card_suit == Suit.CLUBS:
+                    suit_index = 1
+                elif card_suit == Suit.SPADES:
+                    suit_index = 2
+                elif card_suit == Suit.DIAMONDS:
+                    suit_index = 3
+                else:
+                    raise ValueError("Suit of card was not found!")
+                if card_rank == Rank.ACE:
+                    rank_index = 0
+                elif card_rank == Rank.TEN:
+                    rank_index = 4
+                elif card_rank == Rank.JACK:
+                    rank_index = 8
+                elif card_rank == Rank.QUEEN:
+                    rank_index = 12
+                elif card_rank == Rank.KING:
+                    rank_index = 16
+                else:
+                    raise AssertionError("Provided card Rank does not exist!")
+                index = rank_index + suit_index
+                all_cards[index] = 0
+        available_cards = 0
+        for card in all_cards:
+            if card == 1:
+                available_cards += 1
+                
+        n = 20 - available_cards
+        # total nC5
+        # probability of a card will be chosen in the opponent hands n-1C4
+        if n > 5:
+            cards_prob = []
+            total = n * (n-1) * (n-2) * (n-3) * (n-4)/(5*4*3*2*1)
+            cases = (n-1) * (n-2) * (n-3) * (n-4)/(4*3*2*1)
+            probability = cases / total
+            for binary_num in all_cards:
+                if binary_num == 0:
+                    cards_prob += [0]
+                else:
+                    cards_prob += [probability]
+        else:
+            cards_prob = []
+            for binary_num in all_cards:
+                if binary_num == 0:
+                    cards_prob += [1.0]
+                else:
+                    cards_prob += [0.0]
+        return all_cards + cards_prob
+    def create_state_and_actions_vector_representation(self, state, leader_move: Optional[Move],
+                                                   follower_move: Optional[Move]) -> List[int]:
+        """
+        This function takes as input a PlayerPerspective variable, and the two moves of leader and follower,
+        and returns a list of complete feature representation that contains all information
+        """
+        player_game_state_representation = self.get_state_feature_vector()
+        leader_move_representation = self.get_move_feature_vector(leader_move)
+        follower_move_representation = self.get_move_feature_vector(follower_move)
+        cards_representation = self.available_card_feature_vector()
+        return player_game_state_representation + leader_move_representation + follower_move_representation + cards_representation
 
 class _DummyBot(Bot):
     """A bot used by PlayerPerspective.make_assumption to replace the real bots. This bot cannot play and will throw an Exception for everything"""

@@ -1,3 +1,4 @@
+
 from dataclasses import dataclass
 from json import dumps
 from threading import Event, Thread
@@ -6,8 +7,8 @@ from typing import Optional, Tuple, Type, cast
 
 from flask import Flask, abort, render_template, request
 
-from schnapsen.deck import Card, Rank, Suit
-from schnapsen.game import (Bot, GamePhase, Marriage, Move, PlayerPerspective,
+from src.schnapsen.deck import Card, Rank, Suit
+from src.schnapsen.game import (Bot, GamePhase, Marriage, Move, PlayerPerspective,
                             RegularMove, RegularTrick, Trump_Exchange)
 
 

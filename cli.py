@@ -4,22 +4,21 @@ import pathlib
 from typing import Optional
 
 import click
-from src.schnapsen.bots import MLDataBot, train_ML_model, MLPlayingBot, RandBot
-
+from src.schnapsen.bots.rdeep_ML import RdeepMLBot
+from src.schnapsen.bots import MLDataBot, train_ML_model, MLPlayingBot, RandBot, BullyBot
 from src.schnapsen.bots.example_bot import ExampleBot
 
 from src.schnapsen.game import (Bot, Move, PlayerPerspective,
                             SchnapsenGamePlayEngine, Trump_Exchange)
 from src.schnapsen.twenty_four_card_schnapsen import \
     TwentyFourSchnapsenGamePlayEngine
-
+from src.schnapsen.bots.bot2 import SecondBot
 from src.schnapsen.bots.rdeep import RdeepBot
-
+from binomial_experiment import binom_experiment
 
 @click.group()
 def main() -> None:
     """Various Schnapsen Game Examples"""
-
 
 def play_games_and_return_stats(engine: SchnapsenGamePlayEngine, bot1: Bot, bot2: Bot, number_of_games: int) -> int:
     """
@@ -94,7 +93,7 @@ def rdeep_game() -> None:
     bot1: Bot
     bot2: Bot
     engine = SchnapsenGamePlayEngine()
-    rdeep = bot1 = RdeepBot(num_samples=16, depth=4, rand=random.Random(4564654644))
+    rdeep = bot1 = RdeepBot(num_samples=12, depth=6, rand=random.Random(4564654644))
     bot2 = RandBot(464566)
     wins = 0
     amount = 100
@@ -107,7 +106,25 @@ def rdeep_game() -> None:
         if game_number % 10 == 0:
             print(f"won {wins} out of {game_number}")
 
-
+@main.command()
+def rdeepML_game() -> None:
+    bot1: Bot
+    bot2: Bot
+    engine = SchnapsenGamePlayEngine()
+    rdeep = bot1 = RdeepMLBot(num_samples=8, depth=6, rand=random.Random(4564654644))
+    bot2 = RandBot(random.Random(464566))
+    wins = 0
+    amount = 100
+    for game_number in range(1, amount + 1):
+        if game_number % 2 == 0:
+            bot1, bot2 = bot2, bot1
+        winner_id, _, _ = engine.play_game(bot1, bot2, random.Random(game_number))
+        if winner_id == rdeep:
+            wins += 1
+        if game_number % 10 == 0:
+            print(f"won {wins} out of {game_number}")
+            
+            
 @main.group()
 def ml() -> None:
     """Commands for the ML bot"""
@@ -118,12 +135,14 @@ def create_replay_memory_dataset() -> None:
     # define replay memory database creation parameters
     num_of_games: int = 10000
     replay_memory_dir: str = 'ML_replay_memories'
-    replay_memory_filename: str = 'random_random_10k_games.txt'
+    replay_memory_filename: str = 'RdeepBot_RdeepBot_10k_games_for_rollout.txt'
     replay_memory_location = pathlib.Path(replay_memory_dir) / replay_memory_filename
 
-    bot_1_behaviour: Bot = RandBot(5234243)
+    #bot_1_behaviour: Bot = SecondBot(random.Random(5234243))
+    bot_1_behaviour= RdeepBot(num_samples=6, depth=6, rand=random.Random(5234243))
     # bot_1_behaviour: Bot = RdeepBot(num_samples=4, depth=4, rand=random.Random(4564654644))
-    bot_2_behaviour: Bot = RandBot(54354)
+    #bot_2_behaviour: Bot = SecondBot(random.Random(54354))
+    bot_2_behaviour= RdeepBot(num_samples=6, depth=6, rand=random.Random(54354))
     # bot_2_behaviour: Bot = RdeepBot(num_samples=4, depth=4, rand=random.Random(68438))
     delete_existing_older_dataset = False
 
@@ -149,7 +168,7 @@ def create_replay_memory_dataset() -> None:
 @ml.command()
 def train_model() -> None:
     # directory where the replay memory is saved
-    replay_memory_filename: str = 'random_random_10k_games.txt'
+    replay_memory_filename: str = 'RdeepBot_RdeepBot_10k_games_for_rollout.txt'
     # filename of replay memory within that directory
     replay_memories_directory: str = 'ML_replay_memories'
     # Whether to train a complicated Neural Network model or a simple one.
@@ -157,7 +176,7 @@ def train_model() -> None:
     # Feel free to play with the hyperparameters of the model in file 'ml_bot.py', function 'train_ML_model',
     # under the code of body of the if statement 'if use_neural_network:'
     replay_memory_location = pathlib.Path(replay_memories_directory) / replay_memory_filename
-    model_name: str = 'simple_model'
+    model_name: str = 'New_Rdeep_model'
     model_dir: str = "ML_models"
     model_location = pathlib.Path(model_dir) / model_name
     overwrite: bool = False
@@ -167,7 +186,7 @@ def train_model() -> None:
         model_location.unlink()
 
     train_ML_model(replay_memory_location=replay_memory_location, model_location=model_location,
-                   model_class='LR')
+                   model_class='NN')
 
 
 @ml.command()
@@ -194,6 +213,9 @@ def game_24() -> None:
         winner_id, game_points, score = engine.play_game(bot1, bot2, random.Random(i))
         print(f"Game ended. Winner is {winner_id} with {game_points} points, score {score}")
 
-
+@main.command()
+def experiment_rdeep():
+    binom_experiment(100, 6, 6)
+    
 if __name__ == "__main__":
     main()

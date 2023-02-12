@@ -16,7 +16,6 @@ class MLPlayingBot(Bot):
     def __init__(self, model_location: Optional[pathlib.Path]) -> None:
         """
         Create a new MLPlayingBot which uses the model stored in the mofel_location.
-
         :param model_location: The file containing the model.
         """
         if model_location is None:
@@ -39,21 +38,19 @@ class MLPlayingBot(Bot):
 
         # create all model inputs, for all bot's valid moves
         action_state_representations: list[list[int]] = []
-        cards_representation = available_card_feature_vector(state)
+        available_cards_representation = available_card_feature_vector(state)
         if state.am_i_leader():
             follower_move_representation = get_move_feature_vector(None)
             for my_move_representation in my_move_representations:
                 action_state_representations.append(
-                    state_representation + my_move_representation + follower_move_representation + cards_representation)
+                    state_representation + my_move_representation + follower_move_representation + available_cards_representation)
         else:
             for my_move_representation in my_move_representations:
                 action_state_representations.append(
-                    state_representation + leader_move_representation + my_move_representation + cards_representation)
+                    state_representation + leader_move_representation + my_move_representation + available_cards_representation)
 
         model_output = self.__model.predict_proba(action_state_representations)
-        winning_probabilities_of_moves = []
-        for output in model_output:
-            winning_probabilities_of_moves += [output[1]]
+        winning_probabilities_of_moves = [outcome_prob[1] for outcome_prob in model_output]
         highest_value: float = -1
         best_move: Move
         for index, value in enumerate(winning_probabilities_of_moves):
@@ -94,7 +91,6 @@ class MLDataBot(Bot):
         """
         When the game ends, this function retrieves the game history and more specifically all the replay memories that can
         be derived from it, and stores them in the form of state-actions vector representations and the corresponding outcome of the game
-
         :param won: Did this bot win the game?
         :param state: The final state of the game.
         """
@@ -136,7 +132,6 @@ def train_ML_model(replay_memory_location: Optional[pathlib.Path],
     Train the ML model for the MLPlayingBot based on replay memory stored byt the MLDataBot.
     This implementation has the option to train a neural network model or a model based on linear regression.
     The model classes used in this implemntation are not necesarily optimal.
-
     :param replay_memory_location: Location of the games stored by MLDataBot, default pathlib.Path('ML_replay_memories') / 'test_replay_memory'
     :param model_location: Location where the model will be stored, default pathlib.Path("ML_models") / 'test_model'
     :param model_class: The machine learning model class to be used, either 'NN' for a neural network, or 'LR' for a linear regression.
@@ -166,7 +161,7 @@ def train_ML_model(replay_memory_location: Optional[pathlib.Path],
         for line in replay_memory_file:
             feature_string, won_label_str = line.split("||")
             feature_list_strings: list[str] = feature_string.split(",")
-            feature_list = [float(feature) for feature in feature_list_strings]
+            feature_list = [int(feature) for feature in feature_list_strings]
             won_label = int(won_label_str)
             data.append(feature_list)
             targets.append(won_label)
@@ -190,23 +185,19 @@ def train_ML_model(replay_memory_location: Optional[pathlib.Path],
         # Tips: more neurons or more layers of neurons create a more complicated model that takes more time to train and
         # needs a bigger dataset, but if you find the correct combination of neurons and neural layers and provide a big enough training dataset can lead to better performance
 
-        # one layer of 30 neurons
-        hidden_layer_sizes = (30, 20, 30)
+        hidden_layer_sizes = (30,20,30)
         # two layers of 30 and 5 neurons respectively
         # hidden_layer_sizes = (30, 5)
 
         # The learning rate determines how fast we move towards the optimal solution.
         # A low learning rate will converge slowly, but a large one might overshoot.
         learning_rate = 0.0001
-
         # The regularization term aims to prevent over-fitting, and we can tweak its strength here.
         regularization_strength = 0.0001
         max_iter = 400
-        solver = "adam"
         # Train a neural network
         learner = MLPClassifier(hidden_layer_sizes=hidden_layer_sizes, learning_rate_init=learning_rate,
-                                alpha=regularization_strength, verbose=True, early_stopping=False, max_iter = max_iter,
-                                activation='tanh', solver=solver)
+                                alpha=regularization_strength, verbose=True, early_stopping=False, max_iter=max_iter)
     elif model_class == 'LR':
         # Train a simpler Linear Logistic Regression model
         # learn more about the model or how to use better use it by checking out its documentation
@@ -237,8 +228,8 @@ def create_state_and_actions_vector_representation(state: PlayerPerspective, lea
     player_game_state_representation = get_state_feature_vector(state)
     leader_move_representation = get_move_feature_vector(leader_move)
     follower_move_representation = get_move_feature_vector(follower_move)
-    cards_representation = available_card_feature_vector(state)
-    return player_game_state_representation + leader_move_representation + follower_move_representation + cards_representation
+    available_cards_representation = available_card_feature_vector(state)
+    return player_game_state_representation + leader_move_representation + follower_move_representation + available_cards_representation
 
 
 def get_one_hot_encoding_of_card_suit(card_suit: Suit) -> List[int]:
@@ -342,7 +333,6 @@ def get_state_feature_vector(state: PlayerPerspective) -> List[int]:
         - talon size (int)
         - if this player is leader (1-hot encoding)
         - What is the status of each card of the deck (where it is, or if its location is unknown)
-
         Important: This function should not include the move of this agent.
         It should only include any earlier actions of other agents (so the action of the other agent in case that is the leader)
     """
@@ -430,6 +420,7 @@ def get_state_feature_vector(state: PlayerPerspective) -> List[int]:
     state_feature_list += deck_knowledge_in_consecutive_one_hot_encodings
 
     return state_feature_list
+
 
 def available_card_feature_vector(state: PlayerPerspective) -> List[float]:
     """

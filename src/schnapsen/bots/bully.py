@@ -1,62 +1,65 @@
 import random
 from typing import Optional
-from src.schnapsen.game import Bot, PlayerPerspective, Move, SchnapsenTrickScorer
-
+from src.schnapsen.game import Bot, PlayerPerspective, Move, SchnapsenTrickScorer, RegularMove
+from src.schnapsen.deck import Card, Suit
 class BullyBot(Bot):
-    def __init__(self, seed: int) -> None:
-        self.seed = seed
-        self.rng = random.Random(self.seed)
-    def get_move(
-        self,
-        state: PlayerPerspective,
-        leader_move: Optional[Move],
-    ) -> Move:
-        scorer = SchnapsenTrickScorer()
-        moves = state.valid_moves()
-        self.rng.shuffle(moves)
-        moves_trump_suit = []
-        moves_same_suit = []
-        for move in list(moves):
-            if move.is_trump_exchange():
-                suit = move.cards[0].suit
-            else:
-                move = move.as_regular_move()
-                suit = move.card.suit
-            if suit == state.get_trump_suit():
-                moves_trump_suit.append(move)
-        if len(moves_trump_suit)!=0:
-            move = self.rng.choice(moves_trump_suit)
-            return move
+    def __init__(self, rng: random.Random) -> None:
+        self.rng = rng
+    def get_move(self, state: PlayerPerspective, leader_move: Optional[Move], ) -> Move:
+        # The bully bot only plays valid moves.
+        # get all valid moves
+        my_valid_moves = state.valid_moves()
+        trump_suit_moves: list[Move] = []
+        # get the trump suit
+        trump_suit: Suit = state.get_trump_suit()
+        # get all my valid moves that have the same suit with trump suit.
+        for move in my_valid_moves:
+            cards_of_move: list[Card] = move.cards
+            # get 1st of the list of cards of this move (in case of multiple -> Marriage)
+            card_of_move: Card = cards_of_move[0]
+            if card_of_move.suit == trump_suit:
+                trump_suit_moves.append(move)
+        # If you have cards of the trump suit, play one of them at random
+        if len(trump_suit_moves) > 0:
+            random_trump_suit_move = self.rng.choice(trump_suit_moves)
+            return random_trump_suit_move
+        # Else, if you are the follower and you have cards of the same suit as the opponent, play one of these at random.
         if not state.am_i_leader():
-            if leader_move.is_trump_exchange():
-                leader_suit = move.cards[0].suit
-            else:
-                leader_move = leader_move.as_regular_move()
-                leader_suit = move.card.suit
-            for move in list(moves):
-                if move.is_trump_exchange():
-                    suit = move.cards[0].suit
-                else:
-                    move = move.as_regular_move()
-                    suit = move.card.suit
-                if suit == leader_suit:
-                    moves_same_suit.append(move)
-            if len(moves_same_suit)!=0:
-                move = self.rng.choice(moves_same_suit)
-                return move
-        best_score = float('-inf')
-        best_move = None
-        for move in list(moves):
-            if move.is_trump_exchange():
-                score = scorer.rank_to_points(move.cards[0].rank)
-            else:
-                move = move.as_regular_move()
-                score = scorer.rank_to_points(move.card.rank)
-            if score > best_score:
-                best_score = score
-                best_move = move
-            
-        return best_move
-
+            assert leader_move is not None
+            leader_suit: Suit = leader_move.cards[0].suit
+            leaders_suit_moves: list[Move] = []
+            # get all my valid moves that have the same suit with leader suit.
+            for move in my_valid_moves:
+                cards_of_move = move.cards
+                # get 1st of the list of cards of this move (in case of multiple ->Mariage)
+                card_of_move = cards_of_move[0]
+                if card_of_move.suit == leader_suit:
+                    leaders_suit_moves.append(move)
+            if len(leaders_suit_moves) > 0:
+                random_leader_suit_move = self.rng.choice(leaders_suit_moves)
+                return random_leader_suit_move
+        # Else, play one of your cards with the highest rank
+        # get the list of cards in my hand
+        my_hand_cards: list[Card] = state.get_hand().cards
+        # create an instance object of a SchnapsenTrickScorer Class, that allows usto get the rank of Cards.
+        schnapsen_trick_scorer = SchnapsenTrickScorer()
+        # we set the highest rank to something negative, forcing it to change with the first comparison, since all scores are positive
+        highest_card_score: int = -1
+        card_with_highest_score: Optional[Card] = None
+        for card in my_hand_cards:
+            card_score = schnapsen_trick_scorer.rank_to_points(card.rank)
+            if card_score > highest_card_score:
+                highest_card_score = card_score
+                card_with_highest_score = card
+        # if our logic above was correct, this can never be None. We double check to make sure.
+        assert card_with_highest_score is not None
+        # We now create a move out of this card. Note that here we do not return a move from a call to valid_moves.
+        # An alternative implementaiton would first have taken all valid moves and subsequently filtered these down to
+        # the list of valid cards. Then, we would have found the one with the highest score from that.
+        move_of_card_with_highest_score = RegularMove(card_with_highest_score)
+        # We can double check that this is a valid move like this.
+        assert move_of_card_with_highest_score in my_valid_moves
+        return move_of_card_with_highest_score
     def __repr__(self) -> str:
-        return f"BullyBot(seed={self.seed})"
+        return f"BullyBot "
+
